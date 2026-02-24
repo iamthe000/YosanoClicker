@@ -434,7 +434,9 @@ const Game = (function() {
         skills: {},
         stocks: {},     // { id: count }
         stockPrices: {}, // { id: currentPrice }
-        priceHistory: {} // { id: [price1, price2, ...] }
+        priceHistory: {}, // { id: [price1, price2, ...] }
+        marketTrend: 0, // 0: stable, 1: bull, -1: bear
+        marketTrendDuration: 0
     };
 
     let selectedSkillId = null;
@@ -530,7 +532,9 @@ const Game = (function() {
             buildings: buildingConfig.map(b => ({ id: b.id, count: 0 })),
             skills: {},
             stocks: {},
-            stockPrices: {}
+            stockPrices: {},
+            marketTrend: 0,
+            marketTrendDuration: 0
         };
         stockConfig.forEach(s => {
             state.stocks[s.id] = 0;
@@ -782,15 +786,33 @@ const Game = (function() {
     function updateMarket() {
         if (!state.stockPrices) state.stockPrices = {};
         
+        // Update Trend
+        if (state.marketTrendDuration <= 0) {
+            const rand = Math.random();
+            if (rand < 0.35) state.marketTrend = 1;      // Bull (35%)
+            else if (rand < 0.70) state.marketTrend = -1; // Bear (35%)
+            else state.marketTrend = 0;                  // Stable (30%)
+            
+            state.marketTrendDuration = Math.floor(Math.random() * 20) + 10; // 10-30 ticks
+        }
+        state.marketTrendDuration--;
+
         stockConfig.forEach(stock => {
             let current = state.stockPrices[stock.id];
             if (!current) current = stock.basePrice;
             
-            // Random fluctuation (-vol to +vol)
-            let change = (Math.random() - 0.5) * 2 * stock.volatility;
-            
-            // Mean reversion (pull to base price slightly)
-            let pull = (stock.basePrice - current) / stock.basePrice * 0.05;
+            // Base volatility
+            let change = (Math.random() - 0.5) * 2 * stock.volatility; // -5% to +5%
+
+            // Apply Trend Bias
+            if (state.marketTrend === 1) {
+                change += 0.03 + (Math.random() * 0.02); // +3% to +5% bias
+            } else if (state.marketTrend === -1) {
+                change -= 0.03 + (Math.random() * 0.02); // -3% to -5% bias
+            }
+
+            // Weak Mean Reversion (0.5%) to allow large drifts
+            let pull = (stock.basePrice - current) / stock.basePrice * 0.005; 
             
             let percentChange = change + pull;
             let newPrice = current * (1 + percentChange);
@@ -847,6 +869,9 @@ const Game = (function() {
                     if (state.stocks[s.id] === undefined) state.stocks[s.id] = 0;
                     if (state.stockPrices[s.id] === undefined) state.stockPrices[s.id] = s.basePrice;
                 });
+
+                if (state.marketTrend === undefined) state.marketTrend = 0;
+                if (state.marketTrendDuration === undefined) state.marketTrendDuration = 0;
 
                 // Migrate old skills (Refund)
                 const oldKeys = ['passion_bonus', 'click_bonus', 'discount', 'auto_click'];
@@ -1142,16 +1167,63 @@ const Game = (function() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
             // Find min/max for scaling
-            const minP = Math.min(...history) * 0.9;
-            const maxP = Math.max(...history) * 1.1;
+            let minP = Math.min(...history);
+            let maxP = Math.max(...history);
+            
+            // Ensure some range exists
+            if (maxP === minP) {
+                maxP *= 1.1;
+                minP *= 0.9;
+            } else {
+                const diff = maxP - minP;
+                maxP += diff * 0.1;
+                minP -= diff * 0.1;
+            }
+            if (minP < 0) minP = 0;
+
             const range = maxP - minP;
             
+            // Draw Grid
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            // Horizontal lines
+            for (let i = 1; i < 5; i++) {
+                const y = (canvas.height / 5) * i;
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+            }
+            // Vertical lines
+            const stepX = canvas.width / (history.length - 1);
+            for (let i = 0; i < history.length; i += 10) {
+                const x = i * stepX;
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+            }
+            ctx.stroke();
+
+            // Draw Area Fill
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, 'rgba(0, 255, 0, 0.2)');
+            gradient.addColorStop(1, 'rgba(0, 255, 0, 0)');
+
+            ctx.beginPath();
+            history.forEach((price, i) => {
+                const x = i * stepX;
+                const y = canvas.height - ((price - minP) / range * canvas.height);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.closePath();
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // Draw Line
             ctx.beginPath();
             ctx.strokeStyle = 'var(--neon-green)';
             ctx.lineWidth = 2;
-            
-            const stepX = canvas.width / (history.length - 1);
-            
             history.forEach((price, i) => {
                 const x = i * stepX;
                 const y = canvas.height - ((price - minP) / range * canvas.height);
@@ -1161,7 +1233,8 @@ const Game = (function() {
             ctx.stroke();
 
             // Draw current price line
-            const lastY = canvas.height - ((history[history.length-1] - minP) / range * canvas.height);
+            const currentPriceVal = history[history.length-1];
+            const lastY = canvas.height - ((currentPriceVal - minP) / range * canvas.height);
             ctx.beginPath();
             ctx.strokeStyle = 'var(--neon-pink)';
             ctx.setLineDash([5, 5]);
@@ -1169,6 +1242,18 @@ const Game = (function() {
             ctx.lineTo(canvas.width, lastY);
             ctx.stroke();
             ctx.setLineDash([]);
+
+            // Draw Labels
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.fillText(formatNumber(maxP), 5, 15);
+            ctx.fillText(formatNumber(minP), 5, canvas.height - 5);
+            
+            // Current Price Label on the right
+            ctx.fillStyle = 'var(--neon-pink)';
+            ctx.textAlign = 'right';
+            ctx.fillText(formatNumber(currentPriceVal), canvas.width - 10, lastY - 5);
+            ctx.textAlign = 'left'; // Reset
         }
 
         // Render Controls
