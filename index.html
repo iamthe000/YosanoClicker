@@ -239,41 +239,111 @@
             opacity: 0.7;
         }
 
-        .skill-item {
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid var(--neon-blue);
-            padding: 10px;
-            width: 200px;
+        #skill-tree-container {
+            position: relative;
+            width: 1000px;
+            height: 1000px;
+            background: #111;
+            overflow: hidden;
+            margin: 0 auto;
+        }
+        .skill-node {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 50%;
             display: flex;
-            flex-direction: column;
+            justify-content: center;
             align-items: center;
             cursor: pointer;
+            z-index: 2;
             transition: transform 0.2s;
-            margin: 5px;
         }
-        .skill-item:hover {
-            transform: scale(1.05);
-            border-color: var(--neon-pink);
+        .skill-node:hover {
+            transform: scale(1.2);
+            z-index: 10;
         }
-        .skill-item.purchased {
+        .skill-node.available {
+            border-color: var(--neon-yellow);
+            background: #440;
+        }
+        .skill-node.purchased {
             border-color: var(--neon-green);
-            background: rgba(0, 50, 0, 0.8);
+            background: #040;
+            box-shadow: 0 0 10px var(--neon-green);
         }
-        .skill-name {
-            color: var(--neon-yellow);
-            font-weight: bold;
-            margin-bottom: 5px;
+        .skill-node.locked {
+            opacity: 0.5;
+            pointer-events: none;
         }
-        .skill-desc {
-            font-size: 0.8rem;
-            color: #ddd;
-            margin-bottom: 5px;
+        .skill-tooltip {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            border: 1px solid var(--neon-blue);
+            padding: 10px;
+            width: 200px;
+            border-radius: 5px;
+            display: none;
+            pointer-events: none;
+            z-index: 20;
             text-align: center;
         }
-        .skill-cost {
-            color: var(--neon-pink);
-            font-weight: bold;
+        .skill-node:hover .skill-tooltip {
+            display: block;
         }
+        .skill-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        .stock-item {
+            background: rgba(0,0,0,0.8);
+            border: 1px solid var(--neon-green);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .stock-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            color: var(--neon-yellow);
+            font-size: 0.9rem;
+        }
+        .stock-price {
+            font-size: 1.5rem;
+            color: var(--neon-pink);
+            text-align: right;
+            margin: 5px 0;
+        }
+        .stock-owned {
+            font-size: 0.9rem;
+            color: #fff;
+            text-align: left;
+        }
+        .stock-controls {
+            display: flex;
+            gap: 2px;
+            margin-top: 5px;
+            justify-content: space-between;
+        }
+        .stock-controls button {
+            font-size: 0.7rem;
+            padding: 2px 4px;
+            flex: 1;
+        }
+        .trend-up { color: #00ff00; }
+        .trend-down { color: #ff0000; }
     </style>
 <link rel="apple-touch-icon" href="icon192x192.png">
 <link rel="icon" href="icon192x192.png">
@@ -300,9 +370,21 @@ if ('serviceWorker' in navigator) {
     <button onclick="Game.loadFromJSON()">JSON読込</button>
     <button class="danger" onclick="Game.hardReset()">データ削除</button>
     <button class="special" onclick="Game.openPrestige()">みだれ髪へ転生</button>
+    <button onclick="Game.openMarket()" style="border-color: var(--neon-blue); color: var(--neon-blue);">株式市場</button>
 </div>
 
 <div id="shop"></div>
+
+<div id="market-modal" class="modal">
+    <div class="modal-content" style="width: 95%; max-width: 1000px;">
+        <h2>情熱の株式市場</h2>
+        <div id="market-info" style="margin-bottom: 10px; color: var(--neon-blue);">次回更新までお待ちください...</div>
+        <div id="stock-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; max-height: 60vh; overflow-y: auto;">
+            <!-- Stocks injected here -->
+        </div>
+        <button class="special" style="font-size: 1.2rem; margin-top: 20px;" onclick="Game.closeMarket()">市場を閉じる</button>
+    </div>
+</div>
 
 <div id="prestige-modal" class="modal">
     <div class="modal-content">
@@ -338,8 +420,13 @@ const Game = (function() {
         lastSave: Date.now(),
         prestigePoints: 0,
         buildings: [],
-        skills: {}
+        skills: {},
+        stocks: {},     // { id: count }
+        stockPrices: {} // { id: currentPrice }
     };
+
+    let lastMarketUpdate = 0;
+    const MARKET_UPDATE_INTERVAL = 10000; // 10 seconds
 
     const buildingConfig = [
         { id: 0, name: "短歌", baseCost: 15, baseProd: 0.5 },
@@ -350,14 +437,60 @@ const Game = (function() {
         { id: 5, name: "国会議事堂", baseCost: 1400000, baseProd: 2500 },
         { id: 6, name: "君死にたまふことなかれ砲", baseCost: 20000000, baseProd: 15000 },
         { id: 7, name: "サイバー晶子", baseCost: 330000000, baseProd: 100000 },
-        { id: 8, name: "銀河鉄道", baseCost: 5100000000, baseProd: 850000 }
+        { id: 8, name: "銀河鉄道", baseCost: 5100000000, baseProd: 850000 },
+        { id: 9, name: "並行宇宙サロン", baseCost: 100000000000, baseProd: 5000000 },
+        { id: 10, name: "ビッグバン万年筆", baseCost: 20000000000000, baseProd: 40000000 },
+        { id: 11, name: "アキコバース", baseCost: 500000000000000, baseProd: 300000000 }
+    ];
+
+    const stockConfig = [
+        { id: 'stk_tanka', name: '短歌インダストリー', symbol: 'TNK', basePrice: 100, volatility: 0.05 },
+        { id: 'stk_hair', name: '乱れ髪製鉄', symbol: 'MID', basePrice: 500, volatility: 0.08 },
+        { id: 'stk_yosano', name: 'Yosano Holdings', symbol: 'YHD', basePrice: 1200, volatility: 0.12 },
+        { id: 'stk_tekkan', name: '鉄幹マイニング', symbol: 'TKK', basePrice: 5000, volatility: 0.15 },
+        { id: 'stk_akiko', name: 'Akiko Global', symbol: 'AKG', basePrice: 15000, volatility: 0.20 },
+        { id: 'stk_galaxy', name: '銀河鉄道配送', symbol: 'GXY', basePrice: 100000, volatility: 0.30 }
     ];
 
     const skillConfig = [
-        { id: 'passion_bonus', name: '情熱の歌', cost: 1, desc: '生産量 +20% / Lv', type: 'passive' },
-        { id: 'click_bonus', name: '乱れ髪の指先', cost: 5, desc: 'クリック力 +50% / Lv', type: 'click' },
-        { id: 'discount', name: 'あきんど晶子', cost: 20, desc: '施設コスト -5% / Lv', type: 'discount' },
-        { id: 'auto_click', name: '自動執筆', cost: 50, desc: '1秒ごとに自動クリック', type: 'auto' }
+        // Root
+        { id: 'passion_1', name: '情熱の芽生え', cost: 1, desc: '生産量 +10%', type: 'passive', val: 0.1, parents: [], pos: {x: 500, y: 50} },
+        
+        // Passion Branch
+        { id: 'passion_2', name: '情熱の歌', cost: 10, desc: '生産量 +20%', type: 'passive', val: 0.2, parents: ['passion_1'], pos: {x: 500, y: 150} },
+        { id: 'passion_3', name: '燃え上がる恋', cost: 100, desc: '生産量 +30%', type: 'passive', val: 0.3, parents: ['passion_2'], pos: {x: 500, y: 250} },
+        { id: 'passion_4', name: '無限の情熱', cost: 1000, desc: '生産量 +50%', type: 'passive', val: 0.5, parents: ['passion_3'], pos: {x: 500, y: 350} },
+        { id: 'passion_5', name: '宇宙への愛', cost: 10000, desc: '生産量 +100%', type: 'passive', val: 1.0, parents: ['passion_4'], pos: {x: 500, y: 450} },
+        { id: 'passion_6', name: 'アカシックレコード', cost: 100000, desc: '生産量 +200%', type: 'passive', val: 2.0, parents: ['passion_5'], pos: {x: 500, y: 600} },
+
+        // Click Branch
+        { id: 'click_1', name: '乱れ髪の指先', cost: 5, desc: 'クリック力 +50%', type: 'click', val: 0.5, parents: ['passion_1'], pos: {x: 300, y: 150} },
+        { id: 'click_2', name: '速筆', cost: 50, desc: 'クリック力 +50%', type: 'click', val: 0.5, parents: ['click_1'], pos: {x: 300, y: 250} },
+        { id: 'click_3', name: '超・乱れ髪', cost: 5000, desc: 'クリック力 +100%', type: 'click', val: 1.0, parents: ['click_2'], pos: {x: 300, y: 350} },
+        
+        // Crit Sub-branch
+        { id: 'crit_1', name: '会心の一撃', cost: 500, desc: 'クリック時 5%で10倍', type: 'crit', val: 0.05, parents: ['click_2'], pos: {x: 150, y: 350} },
+        { id: 'crit_2', name: '神速の筆', cost: 5000, desc: '会心率 +5%', type: 'crit', val: 0.05, parents: ['crit_1'], pos: {x: 150, y: 450} },
+
+        // Auto Branch
+        { id: 'auto_1', name: '自動執筆', cost: 50, desc: '自動クリック +1/s', type: 'auto', val: 1, parents: ['click_1'], pos: {x: 100, y: 150} },
+        { id: 'auto_2', name: 'ゴーストライター', cost: 500, desc: '自動クリック +5/s', type: 'auto', val: 5, parents: ['auto_1'], pos: {x: 100, y: 250} },
+        { id: 'auto_3', name: 'AI執筆', cost: 5000, desc: '自動クリック +10/s', type: 'auto', val: 10, parents: ['auto_2'], pos: {x: 100, y: 500} },
+
+        // Facility Branch
+        { id: 'discount_1', name: 'あきんど晶子', cost: 20, desc: '施設コスト -5%', type: 'discount', val: 0.05, parents: ['passion_1'], pos: {x: 700, y: 150} },
+        { id: 'discount_2', name: '出版交渉', cost: 200, desc: '施設コスト -5%', type: 'discount', val: 0.05, parents: ['discount_1'], pos: {x: 700, y: 250} },
+        { id: 'discount_3', name: '国家予算掌握', cost: 5000, desc: '施設コスト -10%', type: 'discount', val: 0.10, parents: ['discount_2'], pos: {x: 700, y: 350} },
+
+        // Specific Facility Buffs
+        { id: 'buff_tanka', name: '短歌改良', cost: 50, desc: '短歌 生産2倍', type: 'buff_bldg', val: 2, target: 0, parents: ['discount_1'], pos: {x: 850, y: 150} },
+        { id: 'buff_mag', name: '文芸誌増刷', cost: 150, desc: '文芸誌 生産2倍', type: 'buff_bldg', val: 2, target: 1, parents: ['discount_2'], pos: {x: 850, y: 250} },
+        { id: 'buff_galaxy', name: '銀河鉄道拡張', cost: 5000, desc: '銀河鉄道 生産2倍', type: 'buff_bldg', val: 2, target: 8, parents: ['discount_3'], pos: {x: 850, y: 350} },
+
+        // Special (Golden Akiko)
+        { id: 'golden_1', name: '黄金の晶子', cost: 2000, desc: '落下する晶子をクリック可能に', type: 'golden_unlock', val: 1, parents: ['passion_4'], pos: {x: 500, y: 750} },
+        { id: 'golden_2', name: '輝く髪', cost: 10000, desc: '落下頻度アップ', type: 'golden_freq', val: 0.5, parents: ['golden_1'], pos: {x: 400, y: 850} },
+        { id: 'golden_3', name: '永遠の輝き', cost: 50000, desc: '落下晶子の報酬アップ', type: 'golden_val', val: 2, parents: ['golden_1'], pos: {x: 600, y: 850} }
     ];
 
     let cps = 0;
@@ -387,40 +520,80 @@ const Game = (function() {
             lastSave: Date.now(),
             prestigePoints: 0,
             buildings: buildingConfig.map(b => ({ id: b.id, count: 0 })),
-            skills: {}
+            skills: {},
+            stocks: {},
+            stockPrices: {}
         };
+        stockConfig.forEach(s => {
+            state.stocks[s.id] = 0;
+            state.stockPrices[s.id] = s.basePrice;
+        });
         updateCPS();
     }
 
     function getMultiplier() {
-        const level = state.skills['passion_bonus'] || 0;
-        return 1 + (level * 0.2);
+        let mult = 1;
+        skillConfig.forEach(s => {
+            if (s.type === 'passive' && state.skills[s.id]) {
+                mult += s.val;
+            }
+        });
+        return mult;
     }
 
     function updateCPS() {
         let prod = 0;
         state.buildings.forEach(b => {
             const config = buildingConfig.find(c => c.id === b.id);
-            prod += b.count * config.baseProd;
+            let bProd = config.baseProd;
+            
+            // Apply building specific buffs
+            skillConfig.forEach(s => {
+                if (s.type === 'buff_bldg' && s.target === b.id && state.skills[s.id]) {
+                    bProd *= s.val;
+                }
+            });
+
+            prod += b.count * bProd;
         });
         cps = prod * getMultiplier();
         document.getElementById('yosano-cps').innerText = `毎秒: ${formatNumber(cps)} 与謝野`;
     }
 
     function getClickMultiplier() {
-        const clickLevel = state.skills['click_bonus'] || 0;
-        return 1 + (clickLevel * 0.5);
+        let mult = 1;
+        skillConfig.forEach(s => {
+            if (s.type === 'click' && state.skills[s.id]) {
+                mult += s.val;
+            }
+        });
+        return mult;
     }
 
     function handleClick(e) {
-        const amount = (1 + (cps * 0.05)) * getMultiplier() * getClickMultiplier(); 
+        let amount = (1 + (cps * 0.05)) * getMultiplier() * getClickMultiplier(); 
+        
+        // Crit Logic
+        let critChance = 0;
+        skillConfig.forEach(s => {
+            if (s.type === 'crit' && state.skills[s.id]) {
+                critChance += s.val;
+            }
+        });
+        
+        let isCrit = false;
+        if (Math.random() < critChance) {
+            amount *= 10;
+            isCrit = true;
+        }
+
         addYosano(amount);
         
         const el = document.getElementById('akiko-btn');
         el.style.transform = `scale(0.9) rotate(${Math.random() * 20 - 10}deg)`;
         setTimeout(() => el.style.transform = 'scale(1) rotate(0deg)', 100);
 
-        showFloatingText(e.clientX, e.clientY, `+${formatNumber(amount)}`);
+        showFloatingText(e.clientX, e.clientY, `+${formatNumber(amount)}`, isCrit);
     }
 
     function addYosano(amount) {
@@ -430,13 +603,18 @@ const Game = (function() {
         updateShopButtons();
     }
 
-    function showFloatingText(x, y, text) {
+    function showFloatingText(x, y, text, isCrit = false) {
         const el = document.createElement('div');
         el.className = 'click-effect';
         el.innerText = text;
         el.style.left = `${x}px`;
         el.style.top = `${y}px`;
         el.style.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+        if (isCrit) {
+            el.style.fontSize = '3rem';
+            el.style.color = '#fff';
+            el.style.textShadow = '0 0 10px red';
+        }
         document.body.appendChild(el);
         setTimeout(() => el.remove(), 1000);
     }
@@ -447,6 +625,25 @@ const Game = (function() {
         el.style.left = `${Math.random() * 100}vw`;
         el.style.top = `-50px`;
         el.style.transition = `top ${Math.random() * 3 + 2}s linear, transform 3s linear`;
+        
+        // Golden Akiko Logic
+        if (state.skills['golden_1']) {
+            el.style.pointerEvents = 'auto';
+            el.style.cursor = 'pointer';
+            el.onclick = (e) => {
+                e.stopPropagation();
+                let reward = cps * 10; // Base reward: 10 seconds of production
+                if (reward < 100) reward = 100;
+                
+                // Bonus multiplier
+                if (state.skills['golden_3']) reward *= 3;
+                
+                addYosano(reward);
+                showFloatingText(e.clientX, e.clientY, `+${formatNumber(reward)} (Golden!)`, true);
+                el.remove();
+            };
+        }
+
         document.body.appendChild(el);
         
         requestAnimationFrame(() => {
@@ -480,8 +677,15 @@ const Game = (function() {
     function getCost(id) {
         const config = buildingConfig.find(c => c.id === id);
         const count = state.buildings.find(b => b.id === id).count;
-        const discountLevel = state.skills['discount'] || 0;
-        const discount = Math.pow(0.95, discountLevel);
+        
+        let discount = 1;
+        skillConfig.forEach(s => {
+            if (s.type === 'discount' && state.skills[s.id]) {
+                discount -= s.val;
+            }
+        });
+        if (discount < 0.1) discount = 0.1;
+
         return Math.floor(config.baseCost * Math.pow(1.15, count) * discount);
     }
 
@@ -541,8 +745,61 @@ const Game = (function() {
                 lastAutoClick = now;
             }
         }
+
+        if (now - lastMarketUpdate >= MARKET_UPDATE_INTERVAL) {
+            updateMarket();
+            lastMarketUpdate = now;
+        }
+
+        // Auto Click Logic
+        let autoRate = 0;
+        skillConfig.forEach(s => {
+            if (s.type === 'auto' && state.skills[s.id]) {
+                autoRate += s.val;
+            }
+        });
+
+        if (autoRate > 0) {
+            const interval = 1000 / autoRate;
+            if (now - lastAutoClick >= interval) {
+                const amount = (1 + (cps * 0.05)) * getMultiplier() * getClickMultiplier();
+                addYosano(amount);
+                lastAutoClick = now;
+            }
+        }
         
         requestAnimationFrame(loop);
+    }
+
+    function updateMarket() {
+        if (!state.stockPrices) state.stockPrices = {};
+        
+        stockConfig.forEach(stock => {
+            let current = state.stockPrices[stock.id];
+            if (!current) current = stock.basePrice;
+            
+            // Random fluctuation (-vol to +vol)
+            let change = (Math.random() - 0.5) * 2 * stock.volatility;
+            
+            // Mean reversion (pull to base price slightly)
+            let pull = (stock.basePrice - current) / stock.basePrice * 0.05;
+            
+            let percentChange = change + pull;
+            let newPrice = current * (1 + percentChange);
+            
+            // Clamp minimum price
+            if (newPrice < 1) newPrice = 1;
+            
+            state.stockPrices[stock.id] = newPrice;
+        });
+        
+        // If the market modal is open, we should refresh it. 
+        // We will implement renderMarket() later, but for now we can check if it exists.
+        if (document.getElementById('market-modal') && document.getElementById('market-modal').style.display === 'flex') {
+            if (typeof Game.renderMarket === 'function') {
+                Game.renderMarket();
+            }
+        }
     }
 
     function saveGame() {
@@ -556,6 +813,40 @@ const Game = (function() {
             if(saved) {
                 state = { ...state, ...saved };
                 if (!state.skills) state.skills = {};
+
+                // Ensure new buildings are added to saved state
+                buildingConfig.forEach(c => {
+                    if (!state.buildings.find(b => b.id === c.id)) {
+                        state.buildings.push({ id: c.id, count: 0 });
+                    }
+                });
+
+                if (!state.stocks) state.stocks = {};
+                if (!state.stockPrices) state.stockPrices = {};
+                
+                // Init missing stocks
+                stockConfig.forEach(s => {
+                    if (state.stocks[s.id] === undefined) state.stocks[s.id] = 0;
+                    if (state.stockPrices[s.id] === undefined) state.stockPrices[s.id] = s.basePrice;
+                });
+
+                // Migrate old skills (Refund)
+                const oldKeys = ['passion_bonus', 'click_bonus', 'discount', 'auto_click'];
+                const oldCosts = { 'passion_bonus': 1, 'click_bonus': 5, 'discount': 20, 'auto_click': 50 };
+                let refunded = 0;
+                oldKeys.forEach(key => {
+                    if (state.skills[key]) {
+                        const level = state.skills[key];
+                        // Cost formula was base * (1 + 2 + ... + level)
+                        const totalCost = oldCosts[key] * (level * (level + 1) / 2);
+                        refunded += totalCost;
+                        delete state.skills[key];
+                    }
+                });
+                if (refunded > 0) {
+                    state.prestigePoints += refunded;
+                    alert(`スキルシステムの更新に伴い、旧スキルをリセットしました。\n${formatNumber(refunded)} pt が返却されました。`);
+                }
                 
                 const now = Date.now();
                 const diff = (now - state.lastSave) / 1000;
@@ -646,40 +937,103 @@ const Game = (function() {
     }
 
     function renderSkillShop() {
+        // Renamed concept to Skill Tree, but function name kept for compatibility with existing calls or renamed?
+        // Let's implement renderSkillTree and call it here.
+        renderSkillTree();
+    }
+
+    function renderSkillTree() {
         const container = document.getElementById('skill-list');
         container.innerHTML = '';
+        container.style.display = 'block'; // Override flex
+        container.style.overflow = 'auto'; // Enable scrolling
+        
         document.getElementById('skill-shop-points').innerText = `情熱ポイント: ${formatNumber(state.prestigePoints)} pt`;
+
+        const treeContainer = document.createElement('div');
+        treeContainer.id = 'skill-tree-container';
+        container.appendChild(treeContainer);
+        
+        // Draw Lines (SVG)
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute('class', 'skill-lines');
+        treeContainer.appendChild(svg);
         
         skillConfig.forEach(skill => {
-            const level = state.skills[skill.id] || 0;
-            const cost = skill.cost * (level + 1);
+            const isPurchased = state.skills[skill.id];
             
+            // Draw lines to parents
+            skill.parents.forEach(parentId => {
+                const parent = skillConfig.find(s => s.id === parentId);
+                if (parent) {
+                    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    line.setAttribute('x1', parent.pos.x + 30); // Center of node (60px / 2)
+                    line.setAttribute('y1', parent.pos.y + 30);
+                    line.setAttribute('x2', skill.pos.x + 30);
+                    line.setAttribute('y2', skill.pos.y + 30);
+                    line.setAttribute('stroke', isPurchased ? 'var(--neon-green)' : (state.skills[parentId] ? 'var(--neon-yellow)' : '#555'));
+                    line.setAttribute('stroke-width', '2');
+                    svg.appendChild(line);
+                }
+            });
+            
+            // Create Node
             const div = document.createElement('div');
-            div.className = 'skill-item';
-            div.onclick = () => buySkill(skill.id);
-            div.innerHTML = `
-                <div class="skill-name">${skill.name} (Lv.${level})</div>
-                <div class="skill-desc">${skill.desc}</div>
-                <div class="skill-cost">${formatNumber(cost)} pt</div>
-            `;
-            if (state.prestigePoints >= cost) {
-                div.style.borderColor = 'var(--neon-green)';
-            } else {
-                div.style.opacity = '0.5';
+            div.className = 'skill-node';
+            div.style.left = `${skill.pos.x}px`;
+            div.style.top = `${skill.pos.y}px`;
+            
+            // Determine state
+            let isLocked = false;
+            if (skill.parents.length > 0) {
+                // If any parent is NOT purchased, it's locked
+                if (skill.parents.some(pid => !state.skills[pid])) {
+                    isLocked = true;
+                }
             }
-            container.appendChild(div);
+            
+            if (isPurchased) {
+                div.classList.add('purchased');
+                div.innerHTML = '✔';
+            } else if (!isLocked) {
+                div.classList.add('available');
+                div.innerHTML = '?';
+            } else {
+                div.classList.add('locked');
+                div.innerHTML = '🔒';
+            }
+            
+            div.onclick = () => buySkill(skill.id);
+            
+            // Tooltip
+            const tip = document.createElement('div');
+            tip.className = 'skill-tooltip';
+            tip.innerHTML = `
+                <div class="skill-name">${skill.name}</div>
+                <div class="skill-desc">${skill.desc}</div>
+                <div class="skill-cost">${formatNumber(skill.cost)} pt</div>
+                ${isPurchased ? '<div style="color:var(--neon-green)">取得済み</div>' : ''}
+            `;
+            div.appendChild(tip);
+            
+            treeContainer.appendChild(div);
         });
     }
 
     function buySkill(id) {
         const skill = skillConfig.find(s => s.id === id);
-        const level = state.skills[id] || 0;
-        const cost = skill.cost * (level + 1);
+        if (state.skills[id]) return; // Already bought
+        
+        // Check parents
+        const parentsBought = skill.parents.every(pid => state.skills[pid]);
+        if (!parentsBought) return;
+        
+        const cost = skill.cost;
         
         if (state.prestigePoints >= cost) {
             state.prestigePoints -= cost;
-            state.skills[id] = level + 1;
-            renderSkillShop();
+            state.skills[id] = 1; // Mark as bought
+            renderSkillTree();
             saveGame();
         }
     }
@@ -687,6 +1041,85 @@ const Game = (function() {
     function closeSkillShop() {
         document.getElementById('skill-shop-modal').style.display = 'none';
         location.reload(); 
+    }
+
+    function openMarket() {
+        document.getElementById('market-modal').style.display = 'flex';
+        renderMarket();
+    }
+    
+    function closeMarket() {
+        document.getElementById('market-modal').style.display = 'none';
+    }
+
+    function renderMarket() {
+        const container = document.getElementById('stock-list');
+        if (!container) return;
+        container.innerHTML = '';
+        
+        const nextUpdate = Math.max(0, Math.ceil((MARKET_UPDATE_INTERVAL - (Date.now() - lastMarketUpdate)) / 1000));
+        document.getElementById('market-info').innerText = `市場更新まで: ${nextUpdate}秒`;
+        
+        stockConfig.forEach(stock => {
+            const currentPrice = state.stockPrices[stock.id];
+            const owned = state.stocks[stock.id];
+            
+            const trendClass = currentPrice >= stock.basePrice ? 'trend-up' : 'trend-down';
+            
+            const div = document.createElement('div');
+            div.className = 'stock-item';
+            div.innerHTML = `
+                <div class="stock-header">
+                    <span>${stock.name} (${stock.symbol})</span>
+                    <span class="${trendClass}">$${formatNumber(currentPrice)}</span>
+                </div>
+                <div class="stock-owned">所持: ${formatNumber(owned)}</div>
+                <div class="stock-controls">
+                    <button onclick="Game.buyStock('${stock.id}', 1)">買(1)</button>
+                    <button onclick="Game.buyStock('${stock.id}', 10)">10</button>
+                    <button onclick="Game.buyStock('${stock.id}', 100)">100</button>
+                    <button onclick="Game.buyStock('${stock.id}', -1)">全</button>
+                </div>
+                <div class="stock-controls">
+                    <button class="danger" onclick="Game.sellStock('${stock.id}', 1)">売(1)</button>
+                    <button class="danger" onclick="Game.sellStock('${stock.id}', 10)">10</button>
+                    <button class="danger" onclick="Game.sellStock('${stock.id}', 100)">100</button>
+                    <button class="danger" onclick="Game.sellStock('${stock.id}', -1)">全</button>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function buyStock(id, amount) {
+        const price = state.stockPrices[id];
+        if (amount === -1) {
+            amount = Math.floor(state.yosano / price);
+        }
+        const cost = price * amount;
+        
+        if (amount > 0 && state.yosano >= cost) {
+            state.yosano -= cost;
+            state.stocks[id] += amount;
+            renderMarket();
+            updateDisplay();
+        }
+    }
+
+    function sellStock(id, amount) {
+        const price = state.stockPrices[id];
+        if (amount === -1) {
+            amount = state.stocks[id];
+        }
+        
+        if (amount > 0 && state.stocks[id] >= amount) {
+            const gain = price * amount;
+            state.yosano += gain;
+            // Do NOT add to totalYosano to prevent exploit
+            state.stocks[id] -= amount;
+            renderMarket();
+            updateDisplay();
+        }
     }
 
     function formatNumber(num) {
@@ -704,7 +1137,12 @@ const Game = (function() {
         openPrestige,
         doPrestige,
         closeSkillShop,
-        buySkill
+        buySkill,
+        openMarket,
+        closeMarket,
+        renderMarket,
+        buyStock,
+        sellStock
     };
 })();
 
