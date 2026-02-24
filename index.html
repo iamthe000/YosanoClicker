@@ -238,6 +238,42 @@
             z-index: 1;
             opacity: 0.7;
         }
+
+        .skill-item {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--neon-blue);
+            padding: 10px;
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin: 5px;
+        }
+        .skill-item:hover {
+            transform: scale(1.05);
+            border-color: var(--neon-pink);
+        }
+        .skill-item.purchased {
+            border-color: var(--neon-green);
+            background: rgba(0, 50, 0, 0.8);
+        }
+        .skill-name {
+            color: var(--neon-yellow);
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .skill-desc {
+            font-size: 0.8rem;
+            color: #ddd;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+        .skill-cost {
+            color: var(--neon-pink);
+            font-weight: bold;
+        }
     </style>
 <link rel="apple-touch-icon" href="icon192x192.png">
 <link rel="icon" href="icon192x192.png">
@@ -272,11 +308,22 @@ if ('serviceWorker' in navigator) {
     <div class="modal-content">
         <h2>転生（PRESTIGE）</h2>
         <p>現在の与謝野を全て放棄して、情熱ポイントを獲得します。</p>
-        <p>情熱ポイントは生産量を永続的に倍増させます。</p>
+        <p>情熱ポイントを使ってスキルを購入できます。</p>
         <div id="prestige-gain-display">獲得予定: 0 pt</div>
         <div id="prestige-current-display">現在の情熱: 0 pt</div>
         <button class="special" style="font-size: 1.5rem; margin-top: 20px;" onclick="Game.doPrestige()">転生する！</button>
         <button onclick="document.getElementById('prestige-modal').style.display='none'" style="margin-top: 10px;">キャンセル</button>
+    </div>
+</div>
+
+<div id="skill-shop-modal" class="modal">
+    <div class="modal-content" style="width: 80%; max-width: 800px;">
+        <h2>情熱のスキルショップ</h2>
+        <div id="skill-shop-points" style="font-size: 1.5rem; color: var(--neon-green); margin-bottom: 10px;">情熱ポイント: 0 pt</div>
+        <div id="skill-list" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-height: 60vh; overflow-y: auto;">
+            <!-- Skills will be injected here -->
+        </div>
+        <button class="special" style="font-size: 1.2rem; margin-top: 20px;" onclick="Game.closeSkillShop()">転生完了（ゲーム開始）</button>
     </div>
 </div>
 
@@ -290,7 +337,8 @@ const Game = (function() {
         startTime: Date.now(),
         lastSave: Date.now(),
         prestigePoints: 0,
-        buildings: []
+        buildings: [],
+        skills: {}
     };
 
     const buildingConfig = [
@@ -305,7 +353,15 @@ const Game = (function() {
         { id: 8, name: "銀河鉄道", baseCost: 5100000000, baseProd: 850000 }
     ];
 
+    const skillConfig = [
+        { id: 'passion_bonus', name: '情熱の歌', cost: 1, desc: '生産量 +20% / Lv', type: 'passive' },
+        { id: 'click_bonus', name: '乱れ髪の指先', cost: 5, desc: 'クリック力 +50% / Lv', type: 'click' },
+        { id: 'discount', name: 'あきんど晶子', cost: 20, desc: '施設コスト -5% / Lv', type: 'discount' },
+        { id: 'auto_click', name: '自動執筆', cost: 50, desc: '1秒ごとに自動クリック', type: 'auto' }
+    ];
+
     let cps = 0;
+    let lastAutoClick = 0;
     const clickSound = new Audio(); 
 
     function init() {
@@ -330,13 +386,15 @@ const Game = (function() {
             startTime: Date.now(),
             lastSave: Date.now(),
             prestigePoints: 0,
-            buildings: buildingConfig.map(b => ({ id: b.id, count: 0 }))
+            buildings: buildingConfig.map(b => ({ id: b.id, count: 0 })),
+            skills: {}
         };
         updateCPS();
     }
 
     function getMultiplier() {
-        return 1 + (state.prestigePoints * 0.5); 
+        const level = state.skills['passion_bonus'] || 0;
+        return 1 + (level * 0.2);
     }
 
     function updateCPS() {
@@ -349,8 +407,13 @@ const Game = (function() {
         document.getElementById('yosano-cps').innerText = `毎秒: ${formatNumber(cps)} 与謝野`;
     }
 
+    function getClickMultiplier() {
+        const clickLevel = state.skills['click_bonus'] || 0;
+        return 1 + (clickLevel * 0.5);
+    }
+
     function handleClick(e) {
-        const amount = (1 + (cps * 0.05)) * getMultiplier(); 
+        const amount = (1 + (cps * 0.05)) * getMultiplier() * getClickMultiplier(); 
         addYosano(amount);
         
         const el = document.getElementById('akiko-btn');
@@ -417,7 +480,9 @@ const Game = (function() {
     function getCost(id) {
         const config = buildingConfig.find(c => c.id === id);
         const count = state.buildings.find(b => b.id === id).count;
-        return Math.floor(config.baseCost * Math.pow(1.15, count));
+        const discountLevel = state.skills['discount'] || 0;
+        const discount = Math.pow(0.95, discountLevel);
+        return Math.floor(config.baseCost * Math.pow(1.15, count) * discount);
     }
 
     function buyBuilding(id) {
@@ -467,6 +532,15 @@ const Game = (function() {
             }
             state.lastSave = now;
         }
+
+        const autoLevel = state.skills['auto_click'] || 0;
+        if (autoLevel > 0) {
+            if (now - lastAutoClick >= 1000) {
+                const amount = (1 + (cps * 0.05)) * getMultiplier() * getClickMultiplier();
+                addYosano(amount);
+                lastAutoClick = now;
+            }
+        }
         
         requestAnimationFrame(loop);
     }
@@ -481,6 +555,7 @@ const Game = (function() {
             const saved = JSON.parse(localStorage.getItem('yosanoSave'));
             if(saved) {
                 state = { ...state, ...saved };
+                if (!state.skills) state.skills = {};
                 
                 const now = Date.now();
                 const diff = (now - state.lastSave) / 1000;
@@ -525,6 +600,7 @@ const Game = (function() {
                 const data = JSON.parse(e.target.result);
                 if (data.yosano !== undefined) {
                     state = data;
+                    if (!state.skills) state.skills = {};
                     state.lastSave = Date.now(); 
                     saveGame();
                     location.reload();
@@ -544,25 +620,73 @@ const Game = (function() {
     }
 
     function openPrestige() {
-        const gain = Math.floor(state.totalYosano / 1000000);
+        const gain = Math.floor(state.totalYosano / 10000000);
         document.getElementById('prestige-gain-display').innerText = `獲得予定: ${formatNumber(gain)} pt`;
         document.getElementById('prestige-current-display').innerText = `現在の情熱: ${formatNumber(state.prestigePoints)} pt`;
         document.getElementById('prestige-modal').style.display = 'flex';
     }
 
     function doPrestige() {
-        const gain = Math.floor(state.totalYosano / 1000000);
+        const gain = Math.floor(state.totalYosano / 10000000);
         if (gain > 0) {
             state.prestigePoints += gain;
             state.yosano = 0;
             state.totalYosano = 0;
             state.buildings.forEach(b => b.count = 0);
             state.startTime = Date.now();
+            
             saveGame();
-            location.reload();
+            
+            document.getElementById('prestige-modal').style.display = 'none';
+            renderSkillShop();
+            document.getElementById('skill-shop-modal').style.display = 'flex';
         } else {
-            alert("まだ転生するには情熱が足りません（累計100万与謝野以上必要です）");
+            alert("まだ転生するには情熱が足りません（累計1000万与謝野以上必要です）");
         }
+    }
+
+    function renderSkillShop() {
+        const container = document.getElementById('skill-list');
+        container.innerHTML = '';
+        document.getElementById('skill-shop-points').innerText = `情熱ポイント: ${formatNumber(state.prestigePoints)} pt`;
+        
+        skillConfig.forEach(skill => {
+            const level = state.skills[skill.id] || 0;
+            const cost = skill.cost * (level + 1);
+            
+            const div = document.createElement('div');
+            div.className = 'skill-item';
+            div.onclick = () => buySkill(skill.id);
+            div.innerHTML = `
+                <div class="skill-name">${skill.name} (Lv.${level})</div>
+                <div class="skill-desc">${skill.desc}</div>
+                <div class="skill-cost">${formatNumber(cost)} pt</div>
+            `;
+            if (state.prestigePoints >= cost) {
+                div.style.borderColor = 'var(--neon-green)';
+            } else {
+                div.style.opacity = '0.5';
+            }
+            container.appendChild(div);
+        });
+    }
+
+    function buySkill(id) {
+        const skill = skillConfig.find(s => s.id === id);
+        const level = state.skills[id] || 0;
+        const cost = skill.cost * (level + 1);
+        
+        if (state.prestigePoints >= cost) {
+            state.prestigePoints -= cost;
+            state.skills[id] = level + 1;
+            renderSkillShop();
+            saveGame();
+        }
+    }
+
+    function closeSkillShop() {
+        document.getElementById('skill-shop-modal').style.display = 'none';
+        location.reload(); 
     }
 
     function formatNumber(num) {
@@ -578,7 +702,9 @@ const Game = (function() {
         loadFromJSON,
         hardReset,
         openPrestige,
-        doPrestige
+        doPrestige,
+        closeSkillShop,
+        buySkill
     };
 })();
 
