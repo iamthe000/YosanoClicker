@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>与謝野クリッカー</title>
+    <style>
+        :root {
+            --neon-pink: #ff00ff;
+            --neon-green: #00ff00;
+            --neon-yellow: #ffff00;
+            --neon-blue: #00ffff;
+        }
+
+        body {
+            font-family: 'Comic Sans MS', sans-serif;
+            background: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8f00ff);
+            background-size: 400% 400%;
+            animation: rainbow 3s ease infinite;
+            color: white;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: manipulation;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes rainbow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        #header {
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            text-align: center;
+            border-bottom: 5px solid var(--neon-green);
+            z-index: 10;
+        }
+
+        #yosano-count {
+            font-size: 2.5rem;
+            color: var(--neon-yellow);
+            text-shadow: 2px 2px 0px #ff0000;
+            font-weight: bold;
+        }
+
+        #yosano-cps {
+            font-size: 1.2rem;
+            color: var(--neon-blue);
+        }
+
+        #main-stage {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #akiko-btn {
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            border: 5px solid var(--neon-pink);
+            box-shadow: 0 0 30px var(--neon-pink);
+            cursor: pointer;
+            transition: transform 0.1s;
+            background-image: url('Akiko.png');
+            background-size: cover;
+            background-position: center;
+            z-index: 5;
+        }
+
+        #akiko-btn:active {
+            transform: scale(0.9);
+        }
+
+        .click-effect {
+            position: absolute;
+            color: var(--neon-green);
+            font-weight: bold;
+            font-size: 1.5rem;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-100px) scale(1.5); }
+        }
+
+        #controls {
+            display: flex;
+            gap: 5px;
+            padding: 5px;
+            background: rgba(0,0,0,0.5);
+            overflow-x: auto;
+        }
+
+        button {
+            background: #000;
+            color: var(--neon-green);
+            border: 2px solid var(--neon-green);
+            padding: 8px 12px;
+            font-weight: bold;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        button.danger {
+            color: red;
+            border-color: red;
+        }
+
+        button.special {
+            color: var(--neon-yellow);
+            border-color: var(--neon-yellow);
+            animation: shake 2s infinite;
+        }
+
+        #shop {
+            height: 35%;
+            background: rgba(0, 0, 0, 0.9);
+            overflow-y: scroll;
+            border-top: 5px solid var(--neon-pink);
+            padding-bottom: 20px;
+        }
+
+        .building {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 2px dashed var(--neon-blue);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .building:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .building.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .b-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .b-name {
+            font-size: 1.2rem;
+            color: var(--neon-pink);
+            font-weight: bold;
+        }
+
+        .b-cost {
+            color: var(--neon-yellow);
+        }
+
+        .b-count {
+            font-size: 2rem;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #222, #444);
+            padding: 30px;
+            border: 5px solid var(--neon-yellow);
+            text-align: center;
+            max-width: 90%;
+            border-radius: 10px;
+        }
+
+        .modal h2 {
+            color: var(--neon-pink);
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        #prestige-points {
+            font-size: 3rem;
+            color: var(--neon-green);
+            margin: 20px 0;
+        }
+
+        .falling-akiko {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-image: url('Akiko.png');
+            background-size: cover;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <div id="yosano-count">0 与謝野</div>
+    <div id="yosano-cps">毎秒: 0.0 与謝野</div>
+</div>
+
+<div id="main-stage">
+    <div id="akiko-btn"></div>
+</div>
+
+<div id="controls">
+    <button onclick="Game.saveToJSON()">JSON保存</button>
+    <button onclick="Game.loadFromJSON()">JSON読込</button>
+    <button class="danger" onclick="Game.hardReset()">データ削除</button>
+    <button class="special" onclick="Game.openPrestige()">みだれ髪へ転生</button>
+</div>
+
+<div id="shop"></div>
+
+<div id="prestige-modal" class="modal">
+    <div class="modal-content">
+        <h2>転生（PRESTIGE）</h2>
+        <p>現在の与謝野を全て放棄して、情熱ポイントを獲得します。</p>
+        <p>情熱ポイントは生産量を永続的に倍増させます。</p>
+        <div id="prestige-gain-display">獲得予定: 0 pt</div>
+        <div id="prestige-current-display">現在の情熱: 0 pt</div>
+        <button class="special" style="font-size: 1.5rem; margin-top: 20px;" onclick="Game.doPrestige()">転生する！</button>
+        <button onclick="document.getElementById('prestige-modal').style.display='none'" style="margin-top: 10px;">キャンセル</button>
+    </div>
+</div>
+
+<input type="file" id="file-input" style="display: none;" accept=".json">
+
+<script>
+const Game = (function() {
+    let state = {
+        yosano: 0,
+        totalYosano: 0,
+        startTime: Date.now(),
+        lastSave: Date.now(),
+        prestigePoints: 0,
+        buildings: []
+    };
+
+    const buildingConfig = [
+        { id: 0, name: "短歌", baseCost: 15, baseProd: 0.5 },
+        { id: 1, name: "文芸誌", baseCost: 100, baseProd: 4 },
+        { id: 2, name: "パリ留学", baseCost: 1100, baseProd: 32 },
+        { id: 3, name: "鉄幹", baseCost: 12000, baseProd: 120 },
+        { id: 4, name: "婦人運動", baseCost: 130000, baseProd: 500 },
+        { id: 5, name: "国会議事堂", baseCost: 1400000, baseProd: 2500 },
+        { id: 6, name: "君死にたまふことなかれ砲", baseCost: 20000000, baseProd: 15000 },
+        { id: 7, name: "サイバー晶子", baseCost: 330000000, baseProd: 100000 },
+        { id: 8, name: "銀河鉄道", baseCost: 5100000000, baseProd: 850000 }
+    ];
+
+    let cps = 0;
+    const clickSound = new Audio(); 
+
+    function init() {
+        if(localStorage.getItem('yosanoSave')) {
+            loadGame();
+        } else {
+            resetState();
+        }
+        createShop();
+        requestAnimationFrame(loop);
+        setInterval(saveGame, 10000); 
+        setInterval(spawnBackgroundAkiko, 2000);
+        
+        document.getElementById('akiko-btn').addEventListener('pointerdown', handleClick);
+        document.getElementById('file-input').addEventListener('change', handleFileLoad);
+    }
+
+    function resetState() {
+        state = {
+            yosano: 0,
+            totalYosano: 0,
+            startTime: Date.now(),
+            lastSave: Date.now(),
+            prestigePoints: 0,
+            buildings: buildingConfig.map(b => ({ id: b.id, count: 0 }))
+        };
+        updateCPS();
+    }
+
+    function getMultiplier() {
+        return 1 + (state.prestigePoints * 0.5); 
+    }
+
+    function updateCPS() {
+        let prod = 0;
+        state.buildings.forEach(b => {
+            const config = buildingConfig.find(c => c.id === b.id);
+            prod += b.count * config.baseProd;
+        });
+        cps = prod * getMultiplier();
+        document.getElementById('yosano-cps').innerText = `毎秒: ${formatNumber(cps)} 与謝野`;
+    }
+
+    function handleClick(e) {
+        const amount = (1 + (cps * 0.05)) * getMultiplier(); 
+        addYosano(amount);
+        
+        const el = document.getElementById('akiko-btn');
+        el.style.transform = `scale(0.9) rotate(${Math.random() * 20 - 10}deg)`;
+        setTimeout(() => el.style.transform = 'scale(1) rotate(0deg)', 100);
+
+        showFloatingText(e.clientX, e.clientY, `+${formatNumber(amount)}`);
+    }
+
+    function addYosano(amount) {
+        state.yosano += amount;
+        state.totalYosano += amount;
+        updateDisplay();
+        updateShopButtons();
+    }
+
+    function showFloatingText(x, y, text) {
+        const el = document.createElement('div');
+        el.className = 'click-effect';
+        el.innerText = text;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 1000);
+    }
+
+    function spawnBackgroundAkiko() {
+        const el = document.createElement('div');
+        el.className = 'falling-akiko';
+        el.style.left = `${Math.random() * 100}vw`;
+        el.style.top = `-50px`;
+        el.style.transition = `top ${Math.random() * 3 + 2}s linear, transform 3s linear`;
+        document.body.appendChild(el);
+        
+        requestAnimationFrame(() => {
+            el.style.top = '110vh';
+            el.style.transform = `rotate(${Math.random() * 720}deg)`;
+        });
+
+        setTimeout(() => el.remove(), 5000);
+    }
+
+    function createShop() {
+        const container = document.getElementById('shop');
+        container.innerHTML = '';
+        buildingConfig.forEach(b => {
+            const div = document.createElement('div');
+            div.className = 'building';
+            div.id = `building-${b.id}`;
+            div.onclick = () => buyBuilding(b.id);
+            div.innerHTML = `
+                <div class="b-info">
+                    <span class="b-name">${b.name}</span>
+                    <span class="b-cost" id="cost-${b.id}">0 与謝野</span>
+                    <span style="font-size:0.8rem; color:var(--neon-green);">+${formatNumber(b.baseProd * getMultiplier())}/s</span>
+                </div>
+                <div class="b-count" id="count-${b.id}">0</div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function getCost(id) {
+        const config = buildingConfig.find(c => c.id === id);
+        const count = state.buildings.find(b => b.id === id).count;
+        return Math.floor(config.baseCost * Math.pow(1.15, count));
+    }
+
+    function buyBuilding(id) {
+        const cost = getCost(id);
+        if(state.yosano >= cost) {
+            state.yosano -= cost;
+            state.buildings.find(b => b.id === id).count++;
+            updateCPS();
+            updateDisplay();
+            updateShopButtons();
+            
+            const shopDiv = document.getElementById(`building-${id}`);
+            shopDiv.style.backgroundColor = 'var(--neon-pink)';
+            setTimeout(() => shopDiv.style.backgroundColor = '', 200);
+        }
+    }
+
+    function updateShopButtons() {
+        state.buildings.forEach(b => {
+            const cost = getCost(b.id);
+            const el = document.getElementById(`building-${b.id}`);
+            const costEl = document.getElementById(`cost-${b.id}`);
+            const countEl = document.getElementById(`count-${b.id}`);
+            
+            costEl.innerText = formatNumber(cost) + " 与謝野";
+            countEl.innerText = b.count;
+            
+            if(state.yosano >= cost) {
+                el.classList.remove('disabled');
+            } else {
+                el.classList.add('disabled');
+            }
+        });
+    }
+
+    function updateDisplay() {
+        document.getElementById('yosano-count').innerText = `${formatNumber(Math.floor(state.yosano))} 与謝野`;
+    }
+
+    function loop() {
+        const now = Date.now();
+        const dt = (now - state.lastSave) / 1000;
+        
+        if (dt > 0.1) {
+            if (cps > 0) {
+                addYosano(cps * dt);
+            }
+            state.lastSave = now;
+        }
+        
+        requestAnimationFrame(loop);
+    }
+
+    function saveGame() {
+        state.lastSave = Date.now();
+        localStorage.setItem('yosanoSave', JSON.stringify(state));
+    }
+
+    function loadGame() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('yosanoSave'));
+            if(saved) {
+                state = { ...state, ...saved };
+                
+                const now = Date.now();
+                const diff = (now - state.lastSave) / 1000;
+                if(diff > 0) {
+                    updateCPS();
+                    const gained = cps * diff;
+                    state.yosano += gained;
+                    state.totalYosano += gained;
+                    alert(`おかえりなさい！\n不在の間に ${formatNumber(Math.floor(gained))} 与謝野 が生産されました。`);
+                }
+                state.lastSave = now;
+                updateCPS();
+                updateDisplay();
+            }
+        } catch(e) {
+            console.error(e);
+            resetState();
+        }
+    }
+
+    function saveToJSON() {
+        saveGame();
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "yosano_save_" + Date.now() + ".json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    function loadFromJSON() {
+        document.getElementById('file-input').click();
+    }
+
+    function handleFileLoad(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.yosano !== undefined) {
+                    state = data;
+                    state.lastSave = Date.now(); 
+                    saveGame();
+                    location.reload();
+                }
+            } catch(err) {
+                alert("不正なファイルです");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function hardReset() {
+        if(confirm("本当にデータを全て消しますか？")) {
+            localStorage.removeItem('yosanoSave');
+            location.reload();
+        }
+    }
+
+    function openPrestige() {
+        const gain = Math.floor(state.totalYosano / 1000000);
+        document.getElementById('prestige-gain-display').innerText = `獲得予定: ${formatNumber(gain)} pt`;
+        document.getElementById('prestige-current-display').innerText = `現在の情熱: ${formatNumber(state.prestigePoints)} pt`;
+        document.getElementById('prestige-modal').style.display = 'flex';
+    }
+
+    function doPrestige() {
+        const gain = Math.floor(state.totalYosano / 1000000);
+        if (gain > 0) {
+            state.prestigePoints += gain;
+            state.yosano = 0;
+            state.totalYosano = 0;
+            state.buildings.forEach(b => b.count = 0);
+            state.startTime = Date.now();
+            saveGame();
+            location.reload();
+        } else {
+            alert("まだ転生するには情熱が足りません（累計100万与謝野以上必要です）");
+        }
+    }
+
+    function formatNumber(num) {
+        if (num >= 1e12) return (num / 1e12).toFixed(2) + "兆";
+        if (num >= 1e8) return (num / 1e8).toFixed(2) + "億";
+        if (num >= 1e4) return (num / 1e4).toFixed(2) + "万";
+        return Math.floor(num).toString();
+    }
+
+    return {
+        init,
+        saveToJSON,
+        loadFromJSON,
+        hardReset,
+        openPrestige,
+        doPrestige
+    };
+})();
+
+window.onload = Game.init;
+</script>
+</body>
+</html>
