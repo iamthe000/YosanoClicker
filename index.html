@@ -344,6 +344,55 @@
         }
         .trend-up { color: #00ff00; }
         .trend-down { color: #ff0000; }
+
+        @media (min-width: 1024px) {
+            body {
+                flex-direction: row;
+            }
+            #main-game-container {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+                overflow: hidden;
+            }
+            #market-modal {
+                display: flex !important;
+                position: relative;
+                width: 400px;
+                height: 100vh;
+                background: rgba(0,0,0,0.8);
+                border-left: 2px solid var(--neon-blue);
+                z-index: 1; 
+                box-sizing: border-box;
+            }
+            #market-modal .modal-content {
+                background: transparent;
+                border: none;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+                padding: 10px;
+                max-width: 100% !important;
+            }
+            /* Adjust stock list scrolling for panel */
+            #stock-list {
+                flex: 1;
+                max-height: none !important;
+                overflow-y: auto;
+            }
+            
+            /* Hide the close button on PC */
+            #market-modal button[onclick="Game.closeMarket()"] {
+                display: none;
+            }
+            /* Hide the "Open Market" button on PC */
+            #controls button[onclick="Game.openMarket()"] {
+                display: none;
+            }
+        }
     </style>
 <link rel="apple-touch-icon" href="icon192x192.png">
 <link rel="icon" href="icon192x192.png">
@@ -356,6 +405,7 @@ if ('serviceWorker' in navigator) {
 </head>
 <body>
 
+<div id="main-game-container">
 <div id="header">
     <div id="yosano-count">0 与謝野</div>
     <div id="yosano-cps">毎秒: 0.0 与謝野</div>
@@ -374,6 +424,7 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <div id="shop"></div>
+</div>
 
 <div id="market-modal" class="modal">
     <div class="modal-content" style="width: 95%; max-width: 1000px;">
@@ -434,6 +485,7 @@ const Game = (function() {
         skills: {},
         stocks: {},     // { id: count }
         stockPrices: {}, // { id: currentPrice }
+        stockAvgPrices: {}, // { id: avgBuyPrice }
         priceHistory: {}, // { id: [price1, price2, ...] }
         marketTrend: 0, // 0: stable, 1: bull, -1: bear
         marketTrendDuration: 0
@@ -533,12 +585,14 @@ const Game = (function() {
             skills: {},
             stocks: {},
             stockPrices: {},
+            stockAvgPrices: {},
             marketTrend: 0,
             marketTrendDuration: 0
         };
         stockConfig.forEach(s => {
             state.stocks[s.id] = 0;
             state.stockPrices[s.id] = s.basePrice;
+            state.stockAvgPrices[s.id] = 0;
         });
         updateCPS();
     }
@@ -834,10 +888,14 @@ const Game = (function() {
             }
         });
 
-        // If the market modal is open, we should refresh it. 
-        if (document.getElementById('market-modal') && document.getElementById('market-modal').style.display === 'flex') {
-            if (typeof Game.renderMarket === 'function') {
-                Game.renderMarket();
+        // If the market modal is open (or visible on PC), we should refresh it. 
+        const marketModal = document.getElementById('market-modal');
+        if (marketModal) {
+            const style = window.getComputedStyle(marketModal);
+            if (style.display !== 'none') {
+                if (typeof Game.renderMarket === 'function') {
+                    Game.renderMarket();
+                }
             }
         }
     }
@@ -863,11 +921,13 @@ const Game = (function() {
 
                 if (!state.stocks) state.stocks = {};
                 if (!state.stockPrices) state.stockPrices = {};
+                if (!state.stockAvgPrices) state.stockAvgPrices = {};
                 
                 // Init missing stocks
                 stockConfig.forEach(s => {
                     if (state.stocks[s.id] === undefined) state.stocks[s.id] = 0;
                     if (state.stockPrices[s.id] === undefined) state.stockPrices[s.id] = s.basePrice;
+                    if (state.stockAvgPrices[s.id] === undefined) state.stockAvgPrices[s.id] = 0;
                 });
 
                 if (state.marketTrend === undefined) state.marketTrend = 0;
@@ -1260,13 +1320,34 @@ const Game = (function() {
         const ctrlDiv = document.getElementById('single-stock-control');
         const trendClass = currentPrice >= stock.basePrice ? 'trend-up' : 'trend-down';
         
+        let profitDisplay = `<div style="font-size:0.9rem; margin-bottom:10px; color:#666;">取得単価: ---</div>`;
+        const avgPrice = state.stockAvgPrices[stock.id] || 0;
+        
+        if (owned > 0 && avgPrice > 0) {
+            const diff = currentPrice - avgPrice;
+            const totalDiff = diff * owned;
+            const percent = (diff / avgPrice) * 100;
+            const sign = diff >= 0 ? "+" : "";
+            const color = diff >= 0 ? "#00ff00" : "#ff0000";
+            
+            profitDisplay = `
+                <div style="font-size:0.9rem; margin-bottom:5px; color:#ccc;">
+                    取得単価: ${formatNumber(avgPrice)}
+                </div>
+                <div style="font-size:1.0rem; margin-bottom:10px; color:${color}; font-weight:bold;">
+                    損益: ${sign}${formatNumber(totalDiff)} (${sign}${percent.toFixed(1)}%)
+                </div>
+            `;
+        }
+
         ctrlDiv.innerHTML = `
             <div class="stock-item" style="margin:0;">
                 <div class="stock-header" style="font-size:1.5rem; margin-bottom:10px;">
                     <span>${stock.name}</span>
                     <span class="${trendClass}">${formatNumber(currentPrice)} 与謝野</span>
                 </div>
-                <div class="stock-owned" style="font-size:1.2rem; margin-bottom:10px;">所持数: ${formatNumber(owned)}株</div>
+                <div class="stock-owned" style="font-size:1.2rem; margin-bottom:5px;">所持数: ${formatNumber(owned)}株</div>
+                ${profitDisplay}
                 <div style="display:flex; gap:10px; margin-bottom:10px;">
                     <div style="flex:1;">
                         <div style="color:var(--neon-green); margin-bottom:5px;">購入</div>
@@ -1302,6 +1383,18 @@ const Game = (function() {
         
         if (amount > 0 && state.yosano >= cost) {
             state.yosano -= cost;
+            
+            // Calculate weighted average price
+            const currentOwned = state.stocks[id] || 0;
+            const currentAvg = state.stockAvgPrices[id] || 0;
+            const currentTotalCost = currentOwned * currentAvg;
+            const newTotalCost = currentTotalCost + cost;
+            const newCount = currentOwned + amount;
+            
+            if (newCount > 0) {
+                state.stockAvgPrices[id] = newTotalCost / newCount;
+            }
+
             state.stocks[id] += amount;
             renderMarket();
             updateDisplay();
@@ -1319,16 +1412,27 @@ const Game = (function() {
             state.yosano += gain;
             // Do NOT add to totalYosano to prevent exploit
             state.stocks[id] -= amount;
+            
+            // If sold out, reset avg price
+            if (state.stocks[id] === 0) {
+                state.stockAvgPrices[id] = 0;
+            }
+
             renderMarket();
             updateDisplay();
         }
     }
 
     function formatNumber(num) {
-        if (num >= 1e12) return (num / 1e12).toFixed(2) + "兆";
-        if (num >= 1e8) return (num / 1e8).toFixed(2) + "億";
-        if (num >= 1e4) return (num / 1e4).toFixed(2) + "万";
-        return Math.floor(num).toString();
+        let sign = "";
+        if (num < 0) {
+            sign = "-";
+            num = Math.abs(num);
+        }
+        if (num >= 1e12) return sign + (num / 1e12).toFixed(2) + "兆";
+        if (num >= 1e8) return sign + (num / 1e8).toFixed(2) + "億";
+        if (num >= 1e4) return sign + (num / 1e4).toFixed(2) + "万";
+        return sign + Math.floor(num).toString();
     }
 
     return {
