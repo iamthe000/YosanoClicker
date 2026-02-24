@@ -572,6 +572,12 @@ const Game = (function() {
         
         document.getElementById('akiko-btn').addEventListener('pointerdown', handleClick);
         document.getElementById('file-input').addEventListener('change', handleFileLoad);
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'hidden') {
+                saveGame();
+            }
+        });
     }
 
     function resetState() {
@@ -798,7 +804,11 @@ const Game = (function() {
         
         if (dt > 0.1) {
             if (cps > 0) {
-                addYosano(cps * dt);
+                const gained = cps * dt;
+                addYosano(gained);
+                if (dt > 10) {
+                    showFloatingText(window.innerWidth / 2, window.innerHeight / 3, `おかえりなさい！ +${formatNumber(gained)}`, true);
+                }
             }
             state.lastSave = now;
         }
@@ -901,7 +911,7 @@ const Game = (function() {
     }
 
     function saveGame() {
-        state.lastSave = Date.now();
+        // state.lastSave = Date.now(); // Do NOT update lastSave here, to allow offline progress
         localStorage.setItem('yosanoSave', JSON.stringify(state));
     }
 
