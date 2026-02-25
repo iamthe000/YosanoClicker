@@ -1,0 +1,397 @@
+:root {
+            --neon-pink: #ff00ff;
+            --neon-green: #00ff00;
+            --neon-yellow: #ffff00;
+            --neon-blue: #00ffff;
+        }
+
+        body {
+            font-family: 'Comic Sans MS', sans-serif;
+            background: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #8f00ff);
+            background-size: 400% 400%;
+            animation: rainbow 3s ease infinite;
+            color: white;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            touch-action: manipulation;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes rainbow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        #header {
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            text-align: center;
+            border-bottom: 5px solid var(--neon-green);
+            z-index: 10;
+        }
+
+        #yosano-count {
+            font-size: 2.5rem;
+            color: var(--neon-yellow);
+            text-shadow: 2px 2px 0px #ff0000;
+            font-weight: bold;
+        }
+
+        #yosano-cps {
+            font-size: 1.2rem;
+            color: var(--neon-blue);
+        }
+
+        #main-game-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #main-stage {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #akiko-btn {
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            border: 5px solid var(--neon-pink);
+            box-shadow: 0 0 30px var(--neon-pink);
+            cursor: pointer;
+            transition: transform 0.1s;
+            background-image: url('../Akiko.png');
+            background-size: cover;
+            background-position: center;
+            z-index: 5;
+        }
+
+        #akiko-btn:active {
+            transform: scale(0.9);
+        }
+
+        .click-effect {
+            position: absolute;
+            color: var(--neon-green);
+            font-weight: bold;
+            font-size: 1.5rem;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-100px) scale(1.5); }
+        }
+
+        #controls {
+            display: flex;
+            gap: 5px;
+            padding: 5px;
+            background: rgba(0,0,0,0.5);
+            overflow-x: auto;
+        }
+
+        button {
+            background: #000;
+            color: var(--neon-green);
+            border: 2px solid var(--neon-green);
+            padding: 8px 12px;
+            font-weight: bold;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        button.danger {
+            color: red;
+            border-color: red;
+        }
+
+        button.special {
+            color: var(--neon-yellow);
+            border-color: var(--neon-yellow);
+            animation: shake 2s infinite;
+        }
+
+        #shop {
+            height: 35%;
+            background: rgba(0, 0, 0, 0.9);
+            overflow-y: scroll;
+            border-top: 5px solid var(--neon-pink);
+            padding-bottom: 80px;
+        }
+
+        .building {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 2px dashed var(--neon-blue);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .building:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .building.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .b-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .b-name {
+            font-size: 1.2rem;
+            color: var(--neon-pink);
+            font-weight: bold;
+        }
+
+        .b-cost {
+            color: var(--neon-yellow);
+        }
+
+        .b-count {
+            font-size: 2rem;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #222, #444);
+            padding: 30px;
+            border: 5px solid var(--neon-yellow);
+            text-align: center;
+            max-width: 90%;
+            border-radius: 10px;
+        }
+
+        .modal h2 {
+            color: var(--neon-pink);
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+
+        #prestige-points {
+            font-size: 3rem;
+            color: var(--neon-green);
+            margin: 20px 0;
+        }
+
+        .falling-akiko {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-image: url('../Akiko.png');
+            background-size: cover;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.7;
+        }
+
+        #skill-tree-container {
+            position: relative;
+            width: 1000px;
+            height: 1000px;
+            background: #111;
+            overflow: hidden;
+            margin: 0 auto;
+        }
+        .skill-node {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            z-index: 2;
+            transition: transform 0.2s;
+        }
+        .skill-node:hover {
+            transform: scale(1.2);
+            z-index: 10;
+        }
+        .skill-node.available {
+            border-color: var(--neon-yellow);
+            background: #440;
+        }
+        .skill-node.purchased {
+            border-color: var(--neon-green);
+            background: #040;
+            box-shadow: 0 0 10px var(--neon-green);
+        }
+        .skill-node.locked {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .skill-tooltip {
+            position: absolute;
+            bottom: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            border: 1px solid var(--neon-blue);
+            padding: 10px;
+            width: 200px;
+            border-radius: 5px;
+            display: none;
+            pointer-events: none;
+            z-index: 20;
+            text-align: center;
+        }
+        .skill-node:hover .skill-tooltip {
+            display: block;
+        }
+        .skill-lines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+        
+        .stock-item {
+            background: rgba(0,0,0,0.8);
+            border: 1px solid var(--neon-green);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .stock-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            color: var(--neon-yellow);
+            font-size: 0.9rem;
+        }
+        .stock-price {
+            font-size: 1.5rem;
+            color: var(--neon-pink);
+            text-align: right;
+            margin: 5px 0;
+        }
+        .stock-owned {
+            font-size: 0.9rem;
+            color: #fff;
+            text-align: left;
+        }
+        .stock-controls {
+            display: flex;
+            gap: 2px;
+            margin-top: 5px;
+            justify-content: space-between;
+        }
+        .stock-controls button {
+            font-size: 0.7rem;
+            padding: 2px 4px;
+            flex: 1;
+        }
+        .trend-up { color: #00ff00; }
+        .trend-down { color: #ff0000; }
+
+        @media (min-width: 1024px) {
+            body {
+                flex-direction: row;
+            }
+            #main-game-container {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+                overflow: hidden;
+            }
+            #market-modal {
+                display: flex !important;
+                position: relative;
+                width: 400px;
+                height: 100vh;
+                background: rgba(0,0,0,0.8);
+                border-left: 2px solid var(--neon-blue);
+                z-index: 1; 
+                box-sizing: border-box;
+            }
+            #market-modal .modal-content {
+                background: transparent;
+                border: none;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+                padding: 10px;
+                max-width: 100% !important;
+            }
+            /* Adjust stock list scrolling for panel */
+            #stock-list {
+                flex: 1;
+                max-height: none !important;
+                overflow-y: auto;
+            }
+            
+            /* Hide the close button on PC */
+            #market-modal button[onclick="Game.closeMarket()"] {
+                display: none;
+            }
+            /* Hide the "Open Market" button on PC */
+            #controls button[onclick="Game.openMarket()"] {
+                display: none;
+            }
+        }
