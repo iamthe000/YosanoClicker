@@ -83,6 +83,45 @@
             overflow: hidden;
         }
 
+        #facility-visuals {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .facility-emoji {
+            position: absolute;
+            font-size: 2rem;
+            opacity: 0.8;
+            animation: floatEmoji 10s infinite alternate ease-in-out;
+            user-select: none;
+        }
+
+        @keyframes floatEmoji {
+            0% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(10deg); }
+            100% { transform: translateY(10px) rotate(-10deg); }
+        }
+
+        .akiko-aura-passion {
+            box-shadow: 0 0 50px var(--neon-pink) !important;
+            filter: drop-shadow(0 0 20px var(--neon-pink));
+        }
+
+        .akiko-aura-cyber {
+            box-shadow: 0 0 50px var(--neon-blue) !important;
+            filter: hue-rotate(90deg) drop-shadow(0 0 20px var(--neon-blue));
+        }
+
+        .akiko-aura-universe {
+            box-shadow: 0 0 80px white !important;
+            filter: contrast(150%) brightness(120%);
+        }
+
         #akiko-btn {
             width: 250px;
             height: 250px;
