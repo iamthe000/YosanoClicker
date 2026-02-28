@@ -106,6 +106,7 @@ const Game = (function() {
                 saveGame();
             }
         });
+        updateVisuals();
     }
 
     function resetState() {
@@ -129,6 +130,7 @@ const Game = (function() {
             state.stockAvgPrices[s.id] = 0;
         });
         updateCPS();
+        updateVisuals();
     }
 
     function getMultiplier() {
@@ -297,6 +299,7 @@ const Game = (function() {
             updateCPS();
             updateDisplay();
             updateShopButtons();
+            updateVisuals();
             
             const shopDiv = document.getElementById(`building-${id}`);
             shopDiv.style.backgroundColor = 'var(--neon-pink)';
@@ -501,6 +504,7 @@ const Game = (function() {
                 state.lastSave = now;
                 updateCPS();
                 updateDisplay();
+                updateVisuals();
             }
         } catch(e) {
             console.error(e);
@@ -720,6 +724,7 @@ const Game = (function() {
             state.skills[selectedSkillId] = 1;
             renderSkillTree();
             updateSkillPanel();
+            updateVisuals();
             saveGame();
         }
     }
@@ -958,6 +963,66 @@ const Game = (function() {
 
             renderMarket();
             updateDisplay();
+        }
+    }
+
+    function updateVisuals() {
+        const visualsContainer = document.getElementById('facility-visuals');
+        const akikoBtn = document.getElementById('akiko-btn');
+        if (!visualsContainer || !akikoBtn) return;
+
+        // --- 1. 施設の絵文字表示 ---
+        visualsContainer.innerHTML = '';
+        const emojis = {
+            0: "📜", // 短歌
+            1: "📖", // 文芸誌
+            2: "🗼", // パリ留学
+            3: "👨", // 鉄幹
+            4: "🚩", // 婦人運動
+            5: "🏛️", // 国会議事堂
+            6: "💣", // 君死にたまふことなかれ砲
+            7: "🤖", // サイバー晶子
+            8: "🚂", // 銀河鉄道
+            9: "🌀", // 並行宇宙サロン
+            10: "🖋️", // ビッグバン万年筆
+            11: "🌌"  // アキコバース
+        };
+
+        state.buildings.forEach(b => {
+            if (b.count > 0 && emojis[b.id]) {
+                const displayCount = Math.min(b.count, 5); // 種類ごとに最大5個まで表示
+                for (let i = 0; i < displayCount; i++) {
+                    const el = document.createElement('div');
+                    el.className = 'facility-emoji';
+                    el.innerText = emojis[b.id];
+                    // コンテナ内にランダムに配置 (画面端を少し避ける)
+                    el.style.left = `${Math.random() * 80 + 10}%`;
+                    el.style.top = `${Math.random() * 80 + 10}%`;
+                    // アニメーションのタイミングをずらす
+                    el.style.animationDelay = `${Math.random() * 5}s`;
+                    // サイズに少しばらつきを持たせる
+                    const scale = 0.8 + Math.random() * 0.4;
+                    el.style.transform = `scale(${scale})`;
+                    visualsContainer.appendChild(el);
+                }
+            }
+        });
+
+        // --- 2. 晶子ボタンのエフェクト (スキル・施設による変化) ---
+        // 一度すべてのオーラクラスを外す
+        akikoBtn.classList.remove('akiko-aura-passion', 'akiko-aura-cyber', 'akiko-aura-universe');
+
+        // 優先順位: universe (id 11所持) > cyber (id 7所持) > passion (スキル passion_6)
+        const hasUniverse = state.buildings.find(b => b.id === 11)?.count > 0;
+        const hasCyber = state.buildings.find(b => b.id === 7)?.count > 0;
+        const hasPassionMax = state.skills['passion_6'];
+
+        if (hasUniverse) {
+            akikoBtn.classList.add('akiko-aura-universe');
+        } else if (hasCyber) {
+            akikoBtn.classList.add('akiko-aura-cyber');
+        } else if (hasPassionMax) {
+            akikoBtn.classList.add('akiko-aura-passion');
         }
     }
 
